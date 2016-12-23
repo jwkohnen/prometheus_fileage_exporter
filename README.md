@@ -15,6 +15,27 @@ There are three metrics:
 Additionally two HTTP endpoints report healthiness and liveness depending
 of the age of the end file.
 
+# Usage
+
+```
+Usage: ./prometheus-fileage-exporter [options...]
+
+  TODO
+  Options:
+      --file-end string                the end-file (default "/var/run/fileage-exporter/end")
+      --file-start string              the start file (default "/var/run/fileage-exporter/start")
+      --format date --rfc-3339=ns      the date parse format, defaults to what date --rfc-3339=ns puts out (default "2006-01-02 15:04:05.999999999-07:00")
+      --health string                  publish health status on this URL endpoint (default "/healthz")
+      --health-timeout duration        when should the service considered unhealthy (default 10m0s)
+      --health-welpenschutz duration   how long initially the service is considered healthy. (default 10m0s)
+      --listen string                  host:port to listen at (default ":9676")
+      --live string                    publish liveness status on this URL endpoint (default "/live")
+      --liveness-timeout duration      when should the service considered un-live (default 10m0s)
+      --loop duration                  how often to check files (default 2.5s)
+      --namespace string               prometheus namespace
+      --prom string                    publish prometheus metrics on this URL endpoint (default "/metrics")
+```
+
 # TODO
 
 Use file watcher instead of static interval for updating.
