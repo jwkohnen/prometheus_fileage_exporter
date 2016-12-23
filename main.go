@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	flag "github.com/spf13/pflag"
 )
 
@@ -32,65 +33,65 @@ var (
 	startFile        = flag.String("file-start", "/var/run/fileage-exporter/start", "the start file")
 	endFile          = flag.String("file-end", "/var/run/fileage-exporter/end", "the end-file")
 	format           = flag.String("format", "2006-01-02 15:04:05.999999999-07:00", "the date parse format, defaults to what `date --rfc-3339=ns` puts out")
-	hostPort         = flag.String("listen", "localhost:9676", "host:port to listen at")
+	hostPort         = flag.String("listen", ":9676", "host:port to listen at")
 	promEndpoint     = flag.String("prom", "/metrics", "publish prometheus metrics on this URL endpoint")
 	healthEndpoint   = flag.String("health", "/healthz", "publish health status on this URL endpoint")
 	livenessEndpoint = flag.String("live", "/live", "publish liveness status on this URL endpoint")
 	healthTimeout    = flag.Duration("health-timeout", 10*time.Minute, "when should the service considered unhealthy")
-	initDuration     = flag.Duration("init-duration", 15*time.Minute, "when should the service considered unhealthy initially")
+	welpenschutz     = flag.Duration("health-welpenschutz", 10*time.Minute, "how long initially the service is considered healthy.")
+	livenessTimeout  = flag.Duration("liveness-timeout", 10*time.Minute, "when should the service considered un-live")
 	loopDuration     = flag.Duration("loop", 2500*time.Millisecond, "how often to check files")
 	namespace        = flag.String("namespace", "", "prometheus namespace")
-	hostname         = "unknown"
+	startup          = time.Now()
 
 	mu              sync.RWMutex
-	start           time.Time
-	end             time.Time
-	old             time.Time
+	theStart        time.Time
+	theEnd          time.Time
+	theOld          time.Time
 	endFileSeenOnce bool
 
-	promUpdateCount = prometheus.NewCounterVec(prometheus.CounterOpts{
+	promUpdateCount = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: *namespace,
 		Name:      "update_count_total",
 		Help:      "Counter of update runs.",
-	}, []string{"hostname"})
-	promLastUpdate = prometheus.NewGauge(prometheus.GaugeOpts{
+	})
+	promUpdateAge = prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: *namespace,
-		Name:      "last_update_time",
-		Help:      "Timestamp of last time an update finished",
+		Name:      "last_update_age_seconds",
+		Help:      "Time since last time an update finished.",
+	})
+	promUpdateDuration = prometheus.NewSummary(prometheus.SummaryOpts{
+		Namespace: *namespace,
+		Name:      "update_duration_seconds",
+		Help:      "Duration of update runs in seconds.",
 	})
 )
 
 func init() {
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "lasdaklsdj")
+		fmt.Fprintf(os.Stderr, "Usage: %s [options...]\n\n  TODO\n  Options:\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
-	h, err := os.Hostname()
-	if err == nil {
-		hostname = h
-	}
 	prometheus.MustRegister(promUpdateCount)
-	prometheus.MustRegister(promLastUpdate)
-	http.Handle(*promEndpoint, prometheus.Handler())
+	prometheus.MustRegister(promUpdateAge)
+	prometheus.MustRegister(promUpdateDuration)
+	http.Handle(*promEndpoint, promhttp.Handler())
 	http.HandleFunc(*healthEndpoint, healthHandler)
 	http.HandleFunc(*livenessEndpoint, livenessHandler)
 }
 
 func main() {
-	fmt.Println("starting main")
 	loopMeasure()
-	log.Fatal(http.ListenAndServe(*hostPort, nil))
+	err := http.ListenAndServe(*hostPort, nil)
+	log.Fatal(err)
 }
 
 func loopMeasure() {
-	fmt.Println("starting")
 	go func() {
 		for {
-			mu.Lock()
-			start, end = measure(*startFile), measure(*endFile)
+			start, end := measure(*startFile), measure(*endFile)
 			update(start, end)
-			mu.Unlock()
 
 			time.Sleep(*loopDuration)
 		}
@@ -98,34 +99,81 @@ func loopMeasure() {
 }
 
 func update(start, end time.Time) {
-	if end.IsZero() || old == end {
+	mu.Lock()
+	defer mu.Unlock()
+
+	theStart = start
+	theEnd = end
+
+	promUpdateAge.Set(time.Since(end).Seconds())
+
+	if end.IsZero() || theOld == end {
 		return
 	}
+	theOld = end
 	endFileSeenOnce = true
-	promUpdateCount.WithLabelValues(hostname).Inc()
-	promLastUpdate.Set(float64(end.Unix()))
 
-	old = end
+	promUpdateCount.Inc()
+
+	if !start.IsZero() && !end.IsZero() {
+		dur := end.Sub(start)
+		if dur < 0 {
+			panic(fmt.Errorf("Duration negative, start %s, end %s, dur %s", start, end, dur))
+		}
+		promUpdateDuration.Observe(dur.Seconds())
+	}
 }
 
 // in case of error returns zero time.Time
-func measure(file string) time.Time {
-	data, err := ioutil.ReadFile(file)
-	if err != nil {
+func measure(filename string) time.Time {
+	if filename == "" {
 		return time.Time{}
 	}
-	t, err := time.Parse(*format, strings.TrimSpace(string(data)))
-	if err == nil {
-		return t
+
+	if *format != "" {
+		data, err := ioutil.ReadFile(filename)
+		if err != nil {
+			return time.Time{}
+		}
+		t, err := time.Parse(*format, strings.TrimSpace(string(data)))
+		if err == nil {
+			return t
+		}
+		log.Printf("Fall back to mtime for file: %s", filename)
 	}
 
-	log.Printf("Fall back to mtime for file: %s", file)
-	stat, err := os.Stat(file)
+	stat, err := os.Stat(filename)
 	if err != nil {
 		return time.Time{}
 	}
 	return stat.ModTime()
 }
 
-func healthHandler(w http.ResponseWriter, r *http.Request)   {}
-func livenessHandler(w http.ResponseWriter, r *http.Request) {}
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	writeStatusReponse(w, *healthTimeout, *welpenschutz)
+}
+
+func livenessHandler(w http.ResponseWriter, r *http.Request) {
+	writeStatusReponse(w, *livenessTimeout, 0)
+}
+
+func writeStatusReponse(w http.ResponseWriter, timeout, welpenschutz time.Duration) {
+	mu.RLock()
+	myEnd := theEnd
+	mu.RUnlock()
+
+	age := time.Since(myEnd)
+	good := age < timeout
+
+	maturiy := myEnd.Sub(startup)
+	if welpenschutz > 0 && maturiy < welpenschutz {
+		good = true
+	}
+	if good {
+		w.WriteHeader(http.StatusOK)
+	} else {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}
+	fmt.Fprintf(w, "last_update: %s\r\n", myEnd.UTC().Format(time.RFC3339Nano))
+	fmt.Fprintf(w, "# time %s means never.\r\n", time.Time{})
+}
