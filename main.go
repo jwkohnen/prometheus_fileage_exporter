@@ -19,6 +19,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -54,7 +55,7 @@ var (
 	})
 	promUpdateAge = prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: *namespace,
-		Name:      "last_update_age_seconds",
+		Name:      "update_age_seconds",
 		Help:      "Time since last time an update finished.",
 	})
 	promUpdateDuration = prometheus.NewSummary(prometheus.SummaryOpts{
@@ -83,23 +84,24 @@ func main() {
 func watch() {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Error creating fs notifier:", err)
 	}
-	err = w.Add(*endFile)
+	err = w.Add(filepath.Dir(*endFile))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Error adding dir to watcher:", err)
 	}
 
 	go func() {
+		update()
 		for {
-			start, end := measure(*startFile), measure(*endFile)
-			update(start, end)
-
 			select {
-			case <-w.Events:
-				// continue
+			case e := <-w.Events:
+				if filepath.Base(e.Name) != filepath.Base(*endFile) {
+					continue
+				}
+				update()
 			case err := <-w.Errors:
-				log.Println(err)
+				log.Println("Error waiting for fs event:", err)
 			}
 		}
 	}()
@@ -117,7 +119,9 @@ func measure(filename string) (mtime time.Time) {
 	return stat.ModTime()
 }
 
-func update(start, end time.Time) {
+func update() {
+	start, end := measure(*startFile), measure(*endFile)
+
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -167,11 +171,10 @@ func writeStatusReponse(w http.ResponseWriter, timeout, welpenschutz time.Durati
 
 	age := time.Since(myEnd)
 	good := age < timeout
-
-	ageSinceStartup := myEnd.Sub(startup)
-	if welpenschutz > 0 && ageSinceStartup < welpenschutz {
+	if welpenschutz > 0 && myEnd.Sub(startup) < welpenschutz {
 		good = true
 	}
+
 	if good {
 		w.WriteHeader(http.StatusOK)
 	} else {
