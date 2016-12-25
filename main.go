@@ -88,29 +88,29 @@ func main() {
 }
 
 func watch() {
-	startFileBase := filepath.Base(*startFile)
-	endFileBase := filepath.Base(*endFile)
-
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
-		log.Fatal("Error creating fs notifier:", err)
+		log.Fatalf("Error creating fs notifier: %v", err)
 	}
 	err = w.Add(filepath.Dir(*endFile))
 	if err != nil {
-		log.Fatal("Error adding dir to watcher:", err)
+		log.Fatalf("Error adding directory \"%s\" to watcher: %v", *endFile, err)
 	}
 
 	go func() {
+		sf := filepath.Base(*startFile)
+		ef := filepath.Base(*endFile)
+
 		update()
 		for {
 			select {
 			case e := <-w.Events:
-				bn := filepath.Base(e.Name)
-				if bn == startFileBase || bn == endFileBase {
+				f := filepath.Base(e.Name)
+				if f == sf || f == ef {
 					update()
 				}
 			case err := <-w.Errors:
-				log.Println("Error waiting for fs event:", err)
+				log.Printf("Error waiting for fs event: %v", err)
 			}
 		}
 	}()
