@@ -1,2 +1,2 @@
-start
-end
+vendor
+cmd/prometheus-fileage-exporter/prometheus-fileage-exporter
