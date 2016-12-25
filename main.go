@@ -166,7 +166,7 @@ func promHandlerWrapper(w http.ResponseWriter, r *http.Request) {
 
 	if !myEnd.IsZero() {
 		onceRegisterUpdateAge.Do(func() { prometheus.MustRegister(promUpdateAge) })
-		age := time.Since(theEnd)
+		age := time.Since(myEnd)
 		promUpdateAge.Set(age.Seconds())
 	}
 	promHandler.ServeHTTP(w, r)
