@@ -45,7 +45,7 @@ var (
 	mu          sync.RWMutex
 	theStart    time.Time
 	theEnd      time.Time
-	theOld      time.Time
+	theOldEnd   time.Time
 	promHandler http.Handler
 
 	promUpdateCount = prometheus.NewCounter(prometheus.CounterOpts{
@@ -58,18 +58,24 @@ var (
 		Name:      "update_age_seconds",
 		Help:      "Time since last time an update finished.",
 	})
+	promUpdateRunning = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: *namespace,
+		Name:      "update_running",
+		Help:      "If the monitored process seems to run: 0 no; 1 yes.",
+	})
 	promUpdateDuration = prometheus.NewSummary(prometheus.SummaryOpts{
 		Namespace: *namespace,
 		Name:      "update_duration_seconds",
 		Help:      "Duration of update runs in seconds.",
 	})
+	onceRegisterUpdateRunning  sync.Once
+	onceRegisterUpdateDuration sync.Once
+	onceRegisterUpdateAge      sync.Once
 )
 
 func init() {
 	flag.Parse()
 	prometheus.MustRegister(promUpdateCount)
-	prometheus.MustRegister(promUpdateAge)
-	prometheus.MustRegister(promUpdateDuration)
 	promHandler = promhttp.Handler()
 	http.HandleFunc(*promEndpoint, promHandlerWrapper)
 	http.HandleFunc(*healthEndpoint, healthHandler)
@@ -82,6 +88,9 @@ func main() {
 }
 
 func watch() {
+	startFileBase := filepath.Base(*startFile)
+	endFileBase := filepath.Base(*endFile)
+
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatal("Error creating fs notifier:", err)
@@ -96,10 +105,10 @@ func watch() {
 		for {
 			select {
 			case e := <-w.Events:
-				if filepath.Base(e.Name) != filepath.Base(*endFile) {
-					continue
+				bn := filepath.Base(e.Name)
+				if bn == startFileBase || bn == endFileBase {
+					update()
 				}
-				update()
 			case err := <-w.Errors:
 				log.Println("Error waiting for fs event:", err)
 			}
@@ -125,34 +134,41 @@ func update() {
 	mu.Lock()
 	defer mu.Unlock()
 
-	theStart = start
-	theEnd = end
+	theStart, theEnd = start, end
 
-	if end.IsZero() || theOld == end {
-		return
+	if !start.IsZero() {
+		onceRegisterUpdateRunning.Do(func() { prometheus.MustRegister(promUpdateRunning) })
+		if end.IsZero() || start.After(end) {
+			promUpdateRunning.Set(1)
+		} else {
+			promUpdateRunning.Set(0)
+		}
 	}
 
-	theOld = end
-	promUpdateCount.Inc()
-
-	if start.IsZero() || end.IsZero() {
-		return
+	if !end.IsZero() && end != theOldEnd {
+		theOldEnd = end
+		if start.After(end) {
+			return
+		}
+		promUpdateCount.Inc()
+		if !start.IsZero() {
+			onceRegisterUpdateDuration.Do(func() { prometheus.MustRegister(promUpdateDuration) })
+			promUpdateDuration.Observe(end.Sub(start).Seconds())
+		}
 	}
-
-	dur := end.Sub(start)
-	if dur < 0 {
-		panic(fmt.Errorf("Duration negative, start %s, end %s, dur %s", start, end, dur))
-	}
-	promUpdateDuration.Observe(dur.Seconds())
 }
 
 // promHandlerWrapper updates update_age just before handling scrape
 func promHandlerWrapper(w http.ResponseWriter, r *http.Request) {
 	mu.RLock()
-	age := time.Since(theEnd)
+	myEnd := theEnd
 	mu.RUnlock()
 
-	promUpdateAge.Set(age.Seconds())
+	if !myEnd.IsZero() {
+		onceRegisterUpdateAge.Do(func() { prometheus.MustRegister(promUpdateAge) })
+		age := time.Since(theEnd)
+		promUpdateAge.Set(age.Seconds())
+	}
 	promHandler.ServeHTTP(w, r)
 }
 
