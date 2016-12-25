@@ -35,7 +35,7 @@ var (
 	hostPort         = flag.String("listen", ":9676", "host:port to listen at")
 	promEndpoint     = flag.String("prom", "/metrics", "publish prometheus metrics on this URL endpoint")
 	healthEndpoint   = flag.String("health", "/healthz", "publish health status on this URL endpoint")
-	livenessEndpoint = flag.String("live", "/live", "publish liveness status on this URL endpoint")
+	livenessEndpoint = flag.String("liveness", "/liveness", "publish liveness status on this URL endpoint")
 	healthTimeout    = flag.Duration("health-timeout", 10*time.Minute, "when should the service considered unhealthy")
 	welpenschutz     = flag.Duration("health-welpenschutz", 10*time.Minute, "how long initially the service is considered healthy.")
 	livenessTimeout  = flag.Duration("liveness-timeout", 10*time.Minute, "when should the service considered un-live")
@@ -169,20 +169,19 @@ func writeStatusReponse(w http.ResponseWriter, timeout, welpenschutz time.Durati
 	myEnd := theEnd
 	mu.RUnlock()
 
-	age := time.Since(myEnd)
-	good := age < timeout
-	if welpenschutz > 0 && myEnd.Sub(startup) < welpenschutz {
+	updateAge := time.Since(myEnd)
+	good := updateAge < timeout
+	if welpenschutz > 0 && time.Since(startup) < welpenschutz {
 		good = true
 	}
 
-	if good {
-		w.WriteHeader(http.StatusOK)
-	} else {
-		w.WriteHeader(http.StatusServiceUnavailable)
-	}
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	fmt.Fprintf(w, "last_update: %s\r\n"+
+	body := fmt.Sprintf("last_update: %s\r\n"+
 		"# time %s means never.\r\n",
-		myEnd.UTC().Format(time.RFC3339Nano), time.Time{})
+		myEnd.Format(time.RFC3339Nano),
+		time.Time{})
+	if good {
+		fmt.Fprint(w, body)
+	} else {
+		http.Error(w, body, http.StatusServiceUnavailable)
+	}
 }
