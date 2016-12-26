@@ -36,10 +36,10 @@ var (
 	promEndpoint     = flag.String("prom", "/metrics", "publish prometheus metrics on this URL endpoint")
 	healthEndpoint   = flag.String("health", "/healthz", "publish health status on this URL endpoint")
 	livenessEndpoint = flag.String("liveness", "/liveness", "publish liveness status on this URL endpoint")
-	healthTimeout    = flag.Duration("health-timeout", 10*time.Minute, "when should the service considered unhealthy")
+	healthTimeout    = flag.Duration("health-timeout", 10*time.Minute, "when should the service be considered unhealthy")
 	livenessTimeout  = flag.Duration("liveness-timeout", 10*time.Minute, "when should the service be considered un-live")
 	welpenschutz     = flag.Duration("health-welpenschutz", 10*time.Minute, "how long initially the service is considered healthy.")
-	directoryTimeout = flag.Duration("directory-timeout", 10*time.Minute, "how long maximally to try on missing directories")
+	directoryTimeout = flag.Duration("directory-timeout", 10*time.Minute, "how long to wait for missing directories")
 	namespace        = flag.String("namespace", "", "prometheus namespace")
 
 	promHandler = promhttp.Handler()
@@ -77,6 +77,10 @@ var (
 
 func init() {
 	flag.Parse()
+	if flag.NArg() != 0 {
+		log.Fatalf("Superfluous arguments: %v", flag.Args())
+	}
+
 	prometheus.MustRegister(promUpdateCount)
 
 	http.HandleFunc(*promEndpoint, promHandlerWrapper)
@@ -124,10 +128,10 @@ func createWatcher(filename string) *fsnotify.Watcher {
 			break
 		}
 		if addErr != nil {
-			log.Printf("Error adding directory \"%s\" to watcher: %v", d, addErr)
 			if time.Now().After(deadline) {
-				log.Fatalf("Giving up adding directory \"%s\".", d)
+				log.Fatalf("Giving up adding directory \"%s\": %v", addErr)
 			}
+			log.Printf("Retrying to add directory \"%s\" after error: %v", d, addErr)
 		}
 	}
 	return w
@@ -181,6 +185,7 @@ func update() {
 	if !start.IsZero() {
 		onceRegisterUpdateRunning.Do(func() { prometheus.MustRegister(promUpdateRunning) })
 		if end.IsZero() || start.After(end) {
+			log.Println("An update run started.")
 			promUpdateRunning.Set(1)
 		} else {
 			promUpdateRunning.Set(0)
@@ -192,6 +197,7 @@ func update() {
 		if start.After(end) || startup.After(end) {
 			return
 		}
+		log.Println("An update run ended.")
 		promUpdateCount.Inc()
 		if !start.IsZero() {
 			onceRegisterUpdateDuration.Do(func() { prometheus.MustRegister(promUpdateDuration) })
@@ -236,10 +242,10 @@ func writeStatusReponse(w http.ResponseWriter, timeout, welpenschutz time.Durati
 	const body = "last_update: %s\r\n" +
 		"# time %s means never.\r\n" +
 		"# alive/healhty: %t\r\n"
-	lu := myEnd.Format(time.RFC3339Nano)
+	endF := myEnd.Format(time.RFC3339Nano)
 	if good {
-		fmt.Fprintf(w, fmt.Sprintf(body, lu, time.Time{}, good))
+		fmt.Fprintf(w, fmt.Sprintf(body, endF, time.Time{}, good))
 	} else {
-		http.Error(w, fmt.Sprintf(body, lu, time.Time{}, good), http.StatusServiceUnavailable)
+		http.Error(w, fmt.Sprintf(body, endF, time.Time{}, good), http.StatusServiceUnavailable)
 	}
 }
