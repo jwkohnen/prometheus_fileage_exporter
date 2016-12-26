@@ -30,23 +30,25 @@ import (
 )
 
 var (
-	startFile        = flag.String("file-start", "/var/run/fileage-exporter/start", "the start file")
-	endFile          = flag.String("file-end", "/var/run/fileage-exporter/end", "the end-file")
+	startFile        = flag.String("file-start", "", "the start file")
+	endFile          = flag.String("file-end", "", "the end-file")
 	hostPort         = flag.String("listen", ":9676", "host:port to listen at")
 	promEndpoint     = flag.String("prom", "/metrics", "publish prometheus metrics on this URL endpoint")
 	healthEndpoint   = flag.String("health", "/healthz", "publish health status on this URL endpoint")
 	livenessEndpoint = flag.String("liveness", "/liveness", "publish liveness status on this URL endpoint")
 	healthTimeout    = flag.Duration("health-timeout", 10*time.Minute, "when should the service considered unhealthy")
+	livenessTimeout  = flag.Duration("liveness-timeout", 10*time.Minute, "when should the service be considered un-live")
 	welpenschutz     = flag.Duration("health-welpenschutz", 10*time.Minute, "how long initially the service is considered healthy.")
-	livenessTimeout  = flag.Duration("liveness-timeout", 10*time.Minute, "when should the service considered un-live")
+	directoryTimeout = flag.Duration("directory-timeout", 10*time.Minute, "how long maximally to try on missing directories")
 	namespace        = flag.String("namespace", "", "prometheus namespace")
-	startup          = time.Now()
 
-	mu          sync.RWMutex
-	theStart    time.Time
-	theEnd      time.Time
-	theOldEnd   time.Time
-	promHandler http.Handler
+	promHandler = promhttp.Handler()
+	startup     = time.Now()
+
+	theMu     sync.RWMutex
+	theStart  time.Time
+	theEnd    time.Time
+	theOldEnd time.Time
 
 	promUpdateCount = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: *namespace,
@@ -76,41 +78,81 @@ var (
 func init() {
 	flag.Parse()
 	prometheus.MustRegister(promUpdateCount)
-	promHandler = promhttp.Handler()
+
 	http.HandleFunc(*promEndpoint, promHandlerWrapper)
 	http.HandleFunc(*healthEndpoint, healthHandler)
 	http.HandleFunc(*livenessEndpoint, livenessHandler)
+
+	var err error
+	if *startFile != "" {
+		*startFile, err = filepath.Abs(*startFile)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	if *endFile == "" {
+		log.Fatalln("--end-file must be set!")
+	}
+	*endFile, err = filepath.Abs(*endFile)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func main() {
-	watch()
+	startWatcher, endWatcher := createWatcher(*startFile), createWatcher(*endFile)
+	watch(startWatcher, endWatcher)
 	log.Fatal(http.ListenAndServe(*hostPort, nil))
 }
 
-func watch() {
+func createWatcher(filename string) *fsnotify.Watcher {
+	if filename == "" {
+		// return a watcher that will block forever
+		return &fsnotify.Watcher{}
+	}
+
+	deadline := startup.Add(*directoryTimeout)
+
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatalf("Error creating fs notifier: %v", err)
 	}
-	err = w.Add(filepath.Dir(*endFile))
-	if err != nil {
-		log.Fatalf("Error adding directory \"%s\" to watcher: %v", *endFile, err)
+	d := filepath.Dir(filename)
+	for {
+		addErr := w.Add(d)
+		if addErr == nil {
+			break
+		}
+		if addErr != nil {
+			log.Printf("Error adding directory \"%s\" to watcher: %v", d, addErr)
+			if time.Now().After(deadline) {
+				log.Fatalf("Giving up adding directory \"%s\".", d)
+			}
+		}
 	}
+	return w
+}
 
+func watch(startWatcher, endWatcher *fsnotify.Watcher) {
 	go func() {
-		sf := filepath.Base(*startFile)
-		ef := filepath.Base(*endFile)
+		bs := filepath.Base(*startFile)
+		be := filepath.Base(*endFile)
 
 		update()
 		for {
 			select {
-			case e := <-w.Events:
-				f := filepath.Base(e.Name)
-				if f == sf || f == ef {
+			case e := <-startWatcher.Events:
+				if filepath.Base(e.Name) == bs {
 					update()
 				}
-			case err := <-w.Errors:
-				log.Printf("Error waiting for fs event: %v", err)
+			case e := <-endWatcher.Events:
+				if filepath.Base(e.Name) == be {
+					update()
+				}
+			case err := <-startWatcher.Errors:
+				log.Printf("Error waiting for fs event on start file: %v", err)
+			case err := <-endWatcher.Errors:
+				log.Printf("Error waiting for fs event on end file: %v", err)
 			}
 		}
 	}()
@@ -131,8 +173,8 @@ func measure(filename string) (mtime time.Time) {
 func update() {
 	start, end := measure(*startFile), measure(*endFile)
 
-	mu.Lock()
-	defer mu.Unlock()
+	theMu.Lock()
+	defer theMu.Unlock()
 
 	theStart, theEnd = start, end
 
@@ -147,7 +189,7 @@ func update() {
 
 	if !end.IsZero() && end != theOldEnd {
 		theOldEnd = end
-		if start.After(end) {
+		if start.After(end) || startup.After(end) {
 			return
 		}
 		promUpdateCount.Inc()
@@ -160,9 +202,9 @@ func update() {
 
 // promHandlerWrapper updates update_age just before handling scrape
 func promHandlerWrapper(w http.ResponseWriter, r *http.Request) {
-	mu.RLock()
+	theMu.RLock()
 	myEnd := theEnd
-	mu.RUnlock()
+	theMu.RUnlock()
 
 	if !myEnd.IsZero() {
 		onceRegisterUpdateAge.Do(func() { prometheus.MustRegister(promUpdateAge) })
@@ -181,9 +223,9 @@ func livenessHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeStatusReponse(w http.ResponseWriter, timeout, welpenschutz time.Duration) {
-	mu.RLock()
+	theMu.RLock()
 	myEnd := theEnd
-	mu.RUnlock()
+	theMu.RUnlock()
 
 	updateAge := time.Since(myEnd)
 	good := updateAge < timeout
@@ -191,13 +233,13 @@ func writeStatusReponse(w http.ResponseWriter, timeout, welpenschutz time.Durati
 		good = true
 	}
 
-	body := fmt.Sprintf("last_update: %s\r\n"+
-		"# time %s means never.\r\n",
-		myEnd.Format(time.RFC3339Nano),
-		time.Time{})
+	const body = "last_update: %s\r\n" +
+		"# time %s means never.\r\n" +
+		"# alive/healhty: %t\r\n"
+	lu := myEnd.Format(time.RFC3339Nano)
 	if good {
-		fmt.Fprint(w, body)
+		fmt.Fprintf(w, fmt.Sprintf(body, lu, time.Time{}, good))
 	} else {
-		http.Error(w, body, http.StatusServiceUnavailable)
+		http.Error(w, fmt.Sprintf(body, lu, time.Time{}, good), http.StatusServiceUnavailable)
 	}
 }
