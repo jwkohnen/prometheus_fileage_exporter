@@ -47,6 +47,7 @@ type Exporter struct {
 
 func NewExporter(c *Config) *Exporter {
 	x := &Exporter{
+		c:       c,
 		startup: time.Now(),
 		promUpdateCount: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: c.Namespace,

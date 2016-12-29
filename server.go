@@ -13,6 +13,7 @@ func NewDefaultServer(x *Exporter) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc(x.c.PromEndpoint, x.PromHandler)
 	mux.HandleFunc(x.c.HealthEndpoint, x.healthHandler)
+	mux.HandleFunc(x.c.LivenessEndpoint, x.livenessHandler)
 
 	s := &http.Server{
 		Addr:        x.c.Listen,

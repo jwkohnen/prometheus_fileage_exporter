@@ -28,7 +28,7 @@ func main() {
 }
 
 func configure() *pfe.Config {
-	config := pfe.Config{}
+	config := &pfe.Config{}
 	flag.StringVar(&config.StartFile, "file-start", "", "the start file")
 	flag.StringVar(&config.EndFile, "file-end", "", "the end-file")
 	flag.StringVar(&config.Listen, "listen", ":9676", "host:port to listen at")
@@ -44,5 +44,5 @@ func configure() *pfe.Config {
 	if flag.NArg() != 0 {
 		log.Fatalf("Superfluous arguments: %v", flag.Args())
 	}
-	return &config
+	return config
 }
