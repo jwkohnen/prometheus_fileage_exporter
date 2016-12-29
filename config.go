@@ -19,7 +19,7 @@ import "time"
 type Config struct {
 	StartFile        string
 	EndFile          string
-	HostPort         string
+	Listen           string
 	PromEndpoint     string
 	HealthEndpoint   string
 	LivenessEndpoint string

@@ -45,7 +45,7 @@ type Exporter struct {
 	oldEnd time.Time
 }
 
-func New(c *Config) *Exporter {
+func NewExporter(c *Config) *Exporter {
 	x := &Exporter{
 		startup: time.Now(),
 		promUpdateCount: prometheus.NewCounter(prometheus.CounterOpts{

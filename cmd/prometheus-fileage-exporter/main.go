@@ -23,19 +23,15 @@ import (
 )
 
 func main() {
-	config := configure()
-	log.Println(config)
+	s := pfe.NewDefaultServer(pfe.NewExporter(configure()))
+	log.Fatal(s.ListenAndServe())
 }
 
 func configure() *pfe.Config {
-	flag.Parse()
-	if flag.NArg() != 0 {
-		log.Fatalf("Superfluous arguments: %v", flag.Args())
-	}
 	config := pfe.Config{}
 	flag.StringVar(&config.StartFile, "file-start", "", "the start file")
 	flag.StringVar(&config.EndFile, "file-end", "", "the end-file")
-	flag.StringVar(&config.HostPort, "listen", ":9676", "host:port to listen at")
+	flag.StringVar(&config.Listen, "listen", ":9676", "host:port to listen at")
 	flag.StringVar(&config.PromEndpoint, "prom", "/metrics", "publish prometheus metrics on this URL endpoint")
 	flag.StringVar(&config.HealthEndpoint, "health", "/healthz", "publish health status on this URL endpoint")
 	flag.StringVar(&config.LivenessEndpoint, "liveness", "/liveness", "publish liveness status on this URL endpoint")
@@ -44,5 +40,9 @@ func configure() *pfe.Config {
 	flag.DurationVar(&config.LivenessTimeout, "liveness-timeout", 10*time.Minute, "when should the service be considered un-live")
 	flag.DurationVar(&config.Welpenschutz, "health-welpenschutz", 10*time.Minute, "how long initially the service is considered healthy.")
 	flag.DurationVar(&config.DirectoryTimeout, "directory-timeout", 10*time.Minute, "how long to wait for missing directories")
+	flag.Parse()
+	if flag.NArg() != 0 {
+		log.Fatalf("Superfluous arguments: %v", flag.Args())
+	}
 	return &config
 }
