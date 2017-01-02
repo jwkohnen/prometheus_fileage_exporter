@@ -61,7 +61,7 @@ Usage of ./prometheus-fileage-exporter:
 ```
 
 # License
-Copyright 2016 Wolfgang Johannes Kohnen
+Copyright 2016 Johannes Kohnen
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
