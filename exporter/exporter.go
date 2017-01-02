@@ -108,23 +108,24 @@ func (x *Exporter) createWatcher(filename string) *fsnotify.Watcher {
 		return &fsnotify.Watcher{}
 	}
 
-	deadline := x.startup.Add(x.c.DirectoryTimeout)
-
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatalf("Error creating fs notifier: %v", err)
 	}
 	d := filepath.Dir(filename)
-	for {
+	deadline := time.NewTimer(x.startup.Add(x.c.DirectoryTimeout).Sub(time.Now()))
+	for backoff := time.Second; ; backoff *= 2 {
 		addErr := w.Add(d)
 		if addErr == nil {
 			break
-		}
-		if addErr != nil {
-			if time.Now().After(deadline) {
-				log.Fatalf("Giving up adding directory \"%s\": %v", addErr)
+		} else {
+			select {
+			case <-time.After(backoff):
+				log.Printf("Retrying to add directory \"%s\" in %s after error: %v", d, backoff, addErr)
+				continue
+			case <-deadline.C:
+				log.Fatalf("Giving up adding directory \"%s\": %v", d, addErr)
 			}
-			log.Printf("Retrying to add directory \"%s\" after error: %v", d, addErr)
 		}
 	}
 	return w
