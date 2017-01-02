@@ -36,6 +36,7 @@ func configure() *exporter.Config {
 	flag.StringVar(&config.HealthEndpoint, "health", "/healthz", "publish health status on this URL endpoint")
 	flag.StringVar(&config.LivenessEndpoint, "liveness", "/liveness", "publish liveness status on this URL endpoint")
 	flag.StringVar(&config.Namespace, "namespace", "", "prometheus namespace")
+	flag.StringVar(&config.Subsystem, "subsystem", "", "prometheus subsystem")
 	flag.DurationVar(&config.HealthTimeout, "health-timeout", 10*time.Minute, "when should the service be considered unhealthy")
 	flag.DurationVar(&config.LivenessTimeout, "liveness-timeout", 10*time.Minute, "when should the service be considered un-live")
 	flag.DurationVar(&config.Welpenschutz, "health-welpenschutz", 10*time.Minute, "how long initially the service is considered healthy.")

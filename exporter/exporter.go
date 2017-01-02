@@ -51,21 +51,25 @@ func NewExporter(c *Config) *Exporter {
 		startup: time.Now(),
 		promUpdateCount: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: c.Namespace,
+			Subsystem: c.Subsystem,
 			Name:      "update_count_total",
 			Help:      "Counter of update runs.",
 		}),
 		promUpdateAge: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: c.Namespace,
+			Subsystem: c.Subsystem,
 			Name:      "update_age_seconds",
 			Help:      "Time since last time an update finished.",
 		}),
 		promUpdateRunning: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: c.Namespace,
+			Subsystem: c.Subsystem,
 			Name:      "update_running",
 			Help:      "If the monitored process seems to run: 0 no; 1 yes.",
 		}),
 		promUpdateDuration: prometheus.NewSummary(prometheus.SummaryOpts{
 			Namespace: c.Namespace,
+			Subsystem: c.Subsystem,
 			Name:      "update_duration_seconds",
 			Help:      "Duration of update runs in seconds.",
 		}),

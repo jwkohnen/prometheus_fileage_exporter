@@ -28,4 +28,5 @@ type Config struct {
 	Welpenschutz     time.Duration
 	DirectoryTimeout time.Duration
 	Namespace        string
+	Subsystem        string
 }
