@@ -108,8 +108,6 @@ func (x *Exporter) createWatcher(filename string) *fsnotify.Watcher {
 		return &fsnotify.Watcher{}
 	}
 
-	deadline := x.startup.Add(x.c.DirectoryTimeout)
-
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatalf("Error creating fs notifier: %v", err)
