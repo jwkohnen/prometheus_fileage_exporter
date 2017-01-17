@@ -1,6 +1,6 @@
 FROM scratch
 MAINTAINER Johannes Kohnen <wjkohnen@users.noreply.github.com>
 
-COPY cmd/prometheus-fileage-exporter/prometheus-fileage-exporter /
-EXPOSE 9676
+COPY /prometheus-fileage-exporter /
+EXPOSE 9104
 ENTRYPOINT [ "/prometheus-fileage-exporter" ]

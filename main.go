@@ -31,7 +31,7 @@ func configure() *exporter.Config {
 	config := &exporter.Config{}
 	flag.StringVar(&config.StartFile, "file-start", "", "the start file")
 	flag.StringVar(&config.EndFile, "file-end", "", "the end-file")
-	flag.StringVar(&config.Listen, "listen", ":9676", "host:port to listen at")
+	flag.StringVar(&config.Listen, "listen", ":9104", "host:port to listen at")
 	flag.StringVar(&config.PromEndpoint, "prom", "/metrics", "publish prometheus metrics on this URL endpoint")
 	flag.StringVar(&config.HealthEndpoint, "health", "/healthz", "publish health status on this URL endpoint")
 	flag.StringVar(&config.LivenessEndpoint, "liveness", "/liveness", "publish liveness status on this URL endpoint")
