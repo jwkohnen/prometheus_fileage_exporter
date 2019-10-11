@@ -1,9 +1,11 @@
-package: github.com/wjkohnen/prometheus-fileage-exporter
+package: github.com/jwkohnen/prometheus_fileage_exporter
 import:
 - package: github.com/fsnotify/fsnotify
-  version: ^1.4.2
+  version: 1.4.2
 - package: github.com/prometheus/client_golang
-  version: ^0.8.0
+  version: 0.8.0
   subpackages:
   - prometheus
   - prometheus/promhttp
+- package: github.com/sirupsen/logrus
+  version: v1.4.0
