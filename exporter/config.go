@@ -29,4 +29,6 @@ type Config struct {
 	DirectoryTimeout time.Duration
 	Namespace        string
 	Subsystem        string
+	LogJson          bool
+	LogLevel         string
 }

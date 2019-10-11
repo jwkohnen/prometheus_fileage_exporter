@@ -16,7 +16,7 @@ package exporter
 
 import (
 	"fmt"
-	"log"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -38,6 +38,7 @@ type Exporter struct {
 	onceRegisterUpdateAge      sync.Once
 	startup                    time.Time
 	promHandler                http.Handler
+	log                        logrus.Logger
 
 	mu     sync.RWMutex
 	start  time.Time
@@ -45,10 +46,11 @@ type Exporter struct {
 	oldEnd time.Time
 }
 
-func NewExporter(c *Config) *Exporter {
+func NewExporter(c *Config, log logrus.Logger) *Exporter {
 	x := &Exporter{
 		c:       c,
 		startup: time.Now(),
+		log:     log,
 		promUpdateCount: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: c.Namespace,
 			Subsystem: c.Subsystem,
@@ -110,7 +112,7 @@ func (x *Exporter) createWatcher(filename string) *fsnotify.Watcher {
 
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
-		log.Fatalf("Error creating fs notifier: %v", err)
+		x.log.Fatalf("Error creating fs notifier: %v", err)
 	}
 	d := filepath.Dir(filename)
 	deadline := time.NewTimer(x.startup.Add(x.c.DirectoryTimeout).Sub(time.Now()))
@@ -121,10 +123,10 @@ func (x *Exporter) createWatcher(filename string) *fsnotify.Watcher {
 		} else {
 			select {
 			case <-time.After(backoff):
-				log.Printf("Retrying to add directory \"%s\" in %s after error: %v", d, backoff, addErr)
+				x.log.Printf("Retrying to add directory \"%s\" in %s after error: %v", d, backoff, addErr)
 				continue
 			case <-deadline.C:
-				log.Fatalf("Giving up adding directory \"%s\": %v", d, addErr)
+				x.log.Fatalf("Giving up adding directory \"%s\": %v", d, addErr)
 			}
 		}
 	}
@@ -148,9 +150,9 @@ func (x *Exporter) watch(startWatcher, endWatcher *fsnotify.Watcher) {
 					x.update()
 				}
 			case err := <-startWatcher.Errors:
-				log.Printf("Error waiting for fs event on start file: %v", err)
+				x.log.Printf("Error waiting for fs event on start file: %v", err)
 			case err := <-endWatcher.Errors:
-				log.Printf("Error waiting for fs event on end file: %v", err)
+				x.log.Printf("Error waiting for fs event on end file: %v", err)
 			}
 		}
 	}()
@@ -179,7 +181,7 @@ func (x *Exporter) update() {
 	if !start.IsZero() {
 		x.onceRegisterUpdateRunning.Do(func() { prometheus.MustRegister(x.promUpdateRunning) })
 		if end.IsZero() || start.After(end) {
-			log.Println("An update run started.")
+			x.log.Debugf("An update run started.")
 			x.promUpdateRunning.Set(1)
 		} else {
 			x.promUpdateRunning.Set(0)
@@ -191,7 +193,7 @@ func (x *Exporter) update() {
 		if start.After(end) || x.startup.After(end) {
 			return
 		}
-		log.Println("An update run ended.")
+		x.log.Debugf("An update run ended.")
 		x.promUpdateCount.Inc()
 		if !start.IsZero() {
 			x.onceRegisterUpdateDuration.Do(func() { prometheus.MustRegister(x.promUpdateDuration) })
