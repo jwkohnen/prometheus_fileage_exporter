@@ -16,9 +16,10 @@ package main
 
 import (
 	"flag"
-	"github.com/sirupsen/logrus"
 	"os"
 	"time"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/jwkohnen/prometheus_fileage_exporter/exporter"
 )
