@@ -16,6 +16,7 @@ package exporter
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -45,11 +46,16 @@ type Exporter struct {
 	oldEnd time.Time
 }
 
-func NewExporter(c *Config, log Logger) *Exporter {
+func NewExporter(c *Config) *Exporter {
+	logger := log.New(os.Stderr, "", log.LstdFlags)
+	return NewExporterWithLogger(c, logger)
+}
+
+func NewExporterWithLogger(c *Config, logger Logger) *Exporter {
 	x := &Exporter{
 		c:       c,
 		startup: time.Now(),
-		log:     log,
+		log:     logger,
 		promUpdateCount: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: c.Namespace,
 			Subsystem: c.Subsystem,
@@ -84,15 +90,15 @@ func NewExporter(c *Config, log Logger) *Exporter {
 	if x.c.StartFile != "" {
 		startFile, err = filepath.Abs(x.c.StartFile)
 		if err != nil {
-			log.Fatal(err)
+			logger.Fatal(err)
 		}
 	}
 	if x.c.EndFile == "" {
-		log.Fatalln("--end-file must be set!")
+		logger.Fatalln("--end-file must be set!")
 	}
 	endFile, err = filepath.Abs(x.c.EndFile)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
 
 	startWatcher, endWatcher := x.createWatcher(startFile), x.createWatcher(endFile)
