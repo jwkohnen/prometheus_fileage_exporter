@@ -16,7 +16,9 @@ package main
 
 import (
 	"flag"
+	"net/http"
 	"os"
+	"os/signal"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -29,9 +31,22 @@ func main() {
 	log := logrus.New()
 	log.Out = os.Stderr
 
-	s := exporter.NewDefaultServer(exporter.NewExporterWithLogger(configure(log), log))
+	cfg := configure(log)
+	xptr := exporter.NewExporterWithLogger(cfg, log)
+	srv := exporter.NewDefaultServer(xptr)
 
-	log.Fatal(s.ListenAndServe())
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt)
+	go func() {
+		defer signal.Stop(sig)
+		<-sig
+		_ = srv.Close()
+	}()
+
+	err := srv.ListenAndServe()
+	if err != nil && err != http.ErrServerClosed {
+		log.Fatal(err)
+	}
 }
 
 func configure(log *logrus.Logger) *exporter.Config {

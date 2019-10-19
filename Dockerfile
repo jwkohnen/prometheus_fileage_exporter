@@ -12,5 +12,6 @@ RUN	go install --mod=readonly
 FROM	scratch
 COPY	--from=build /go/bin/prometheus_fileage_exporter /
 EXPOSE	9104
+STOPSIGNAL	SIGINT
 ENTRYPOINT	[ "/prometheus_fileage_exporter" ]
 CMD	[ "--help" ]
