@@ -16,18 +16,24 @@ package main
 
 import (
 	"flag"
-	"log"
+	"github.com/sirupsen/logrus"
+	"os"
 	"time"
 
-	"github.com/wjkohnen/prometheus_fileage_exporter/exporter"
+	"github.com/jwkohnen/prometheus_fileage_exporter/exporter"
 )
 
 func main() {
-	s := exporter.NewDefaultServer(exporter.NewExporter(configure()))
+	// Prepare logging
+	log := logrus.New()
+	log.Out = os.Stderr
+
+	s := exporter.NewDefaultServer(exporter.NewExporter(configure(log), log))
+
 	log.Fatal(s.ListenAndServe())
 }
 
-func configure() *exporter.Config {
+func configure(log *logrus.Logger) *exporter.Config {
 	config := &exporter.Config{}
 	flag.StringVar(&config.StartFile, "file-start", "", "the start file")
 	flag.StringVar(&config.EndFile, "file-end", "", "the end-file")
@@ -41,9 +47,17 @@ func configure() *exporter.Config {
 	flag.DurationVar(&config.LivenessTimeout, "liveness-timeout", 10*time.Minute, "when should the service be considered un-live")
 	flag.DurationVar(&config.Welpenschutz, "health-welpenschutz", 10*time.Minute, "how long initially the service is considered healthy.")
 	flag.DurationVar(&config.DirectoryTimeout, "directory-timeout", 10*time.Minute, "how long to wait for missing directories")
+	flag.BoolVar(&config.Debug, "debug", true, "enable debug logging (enabled by default)")
+	flag.BoolVar(&config.LogJSON, "log-json", false, "enable JSON-formatted logging")
 	flag.Parse()
+
+	if config.LogJSON {
+		log.Formatter = new(logrus.JSONFormatter)
+	}
+
 	if flag.NArg() != 0 {
 		log.Fatalf("Superfluous arguments: %v", flag.Args())
 	}
+
 	return config
 }
