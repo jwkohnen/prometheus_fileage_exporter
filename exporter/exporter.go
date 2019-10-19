@@ -38,7 +38,7 @@ type Exporter struct {
 	onceRegisterUpdateAge      sync.Once
 	startup                    time.Time
 	promHandler                http.Handler
-	log                        logrus.Logger
+	log                        *logrus.Logger
 
 	mu     sync.RWMutex
 	start  time.Time
@@ -46,7 +46,7 @@ type Exporter struct {
 	oldEnd time.Time
 }
 
-func NewExporter(c *Config, log logrus.Logger) *Exporter {
+func NewExporter(c *Config, log *logrus.Logger) *Exporter {
 	x := &Exporter{
 		c:       c,
 		startup: time.Now(),

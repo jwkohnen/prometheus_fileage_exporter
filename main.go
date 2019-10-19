@@ -28,7 +28,7 @@ func main() {
 	log := logrus.New()
 	log.Out = os.Stdout
 
-	s := exporter.NewDefaultServer(exporter.NewExporter(configure(log), *log))
+	s := exporter.NewDefaultServer(exporter.NewExporter(configure(log), log))
 
 	log.Fatal(s.ListenAndServe())
 }
