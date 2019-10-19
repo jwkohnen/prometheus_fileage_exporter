@@ -1,6 +1,16 @@
-FROM scratch
-MAINTAINER Johannes Kohnen <wjkohnen@users.noreply.github.com>
+FROM	golang:1.13 as build
+ENV	GO111MODULES=on CGO_ENABLED=0
+WORKDIR	/nogopath
+COPY	go.mod go.sum ./
+RUN	go mod download
+RUN	go mod verify
+COPY	*.go ./
+COPY	exporter exporter
+RUN	go vet ./...
+RUN	go install --mod=readonly
 
-COPY /prometheus-fileage-exporter /
-EXPOSE 9104
-ENTRYPOINT [ "/prometheus-fileage-exporter" ]
+FROM	scratch
+COPY	--from=build /go/bin/prometheus_fileage_exporter /
+EXPOSE	9104
+ENTRYPOINT	[ "/prometheus_fileage_exporter" ]
+CMD	[ "--help" ]
