@@ -48,7 +48,7 @@ func configure(log *logrus.Logger) *exporter.Config {
 	flag.DurationVar(&config.Welpenschutz, "health-welpenschutz", 10*time.Minute, "how long initially the service is considered healthy.")
 	flag.DurationVar(&config.DirectoryTimeout, "directory-timeout", 10*time.Minute, "how long to wait for missing directories")
 	flag.StringVar(&config.LogLevel, "log-level", "error", "set log level (debug, info, warn, error)")
-	flag.BoolVar(&config.LogJson, "log-json", false, "enable JSON-formatted logging")
+	flag.BoolVar(&config.LogJSON, "log-json", false, "enable JSON-formatted logging")
 	flag.Parse()
 
 	switch config.LogLevel {
@@ -64,7 +64,7 @@ func configure(log *logrus.Logger) *exporter.Config {
 		log.Fatalf("Unknown log level %s", config.LogLevel)
 	}
 
-	if config.LogJson {
+	if config.LogJSON {
 		log.Formatter = new(logrus.JSONFormatter)
 	}
 
