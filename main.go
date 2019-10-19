@@ -36,20 +36,48 @@ func main() {
 
 func configure(log *logrus.Logger) *exporter.Config {
 	config := &exporter.Config{}
-	flag.StringVar(&config.StartFile, "file-start", "", "the start file")
-	flag.StringVar(&config.EndFile, "file-end", "", "the end-file")
-	flag.StringVar(&config.Listen, "listen", ":9104", "host:port to listen at")
-	flag.StringVar(&config.PromEndpoint, "prom", "/metrics", "publish prometheus metrics on this URL endpoint")
-	flag.StringVar(&config.HealthEndpoint, "health", "/healthz", "publish health status on this URL endpoint")
-	flag.StringVar(&config.LivenessEndpoint, "liveness", "/liveness", "publish liveness status on this URL endpoint")
-	flag.StringVar(&config.Namespace, "namespace", "", "prometheus namespace")
-	flag.StringVar(&config.Subsystem, "subsystem", "", "prometheus subsystem")
-	flag.DurationVar(&config.HealthTimeout, "health-timeout", 10*time.Minute, "when should the service be considered unhealthy")
-	flag.DurationVar(&config.LivenessTimeout, "liveness-timeout", 10*time.Minute, "when should the service be considered un-live")
-	flag.DurationVar(&config.Welpenschutz, "health-welpenschutz", 10*time.Minute, "how long initially the service is considered healthy.")
-	flag.DurationVar(&config.DirectoryTimeout, "directory-timeout", 10*time.Minute, "how long to wait for missing directories")
-	flag.BoolVar(&config.Debug, "debug", true, "enable debug logging (enabled by default)")
-	flag.BoolVar(&config.LogJSON, "log-json", false, "enable JSON-formatted logging")
+	flag.StringVar(&config.StartFile, "file-start", "",
+		"the start file",
+	)
+	flag.StringVar(&config.EndFile, "file-end", "",
+		"the end-file",
+	)
+	flag.StringVar(&config.Listen, "listen", ":9104",
+		"host:port to listen at",
+	)
+	flag.StringVar(&config.PromEndpoint, "prom", "/metrics",
+		"publish prometheus metrics on this URL endpoint",
+	)
+	flag.StringVar(&config.HealthEndpoint, "health", "/healthz",
+		"publish health status on this URL endpoint",
+	)
+	flag.StringVar(&config.LivenessEndpoint, "liveness", "/liveness",
+		"publish liveness status on this URL endpoint",
+	)
+	flag.StringVar(&config.Namespace, "namespace", "",
+		"prometheus namespace",
+	)
+	flag.StringVar(&config.Subsystem, "subsystem", "",
+		"prometheus subsystem",
+	)
+	flag.DurationVar(&config.HealthTimeout, "health-timeout", 10*time.Minute,
+		"when should the service be considered unhealthy",
+	)
+	flag.DurationVar(&config.LivenessTimeout, "liveness-timeout", 10*time.Minute,
+		"when should the service be considered un-live",
+	)
+	flag.DurationVar(&config.Welpenschutz, "health-welpenschutz", 10*time.Minute,
+		"how long initially the service is considered healthy.",
+	)
+	flag.DurationVar(&config.DirectoryTimeout, "directory-timeout", 10*time.Minute,
+		"how long to wait for missing directories",
+	)
+	flag.BoolVar(&config.Debug, "debug", true,
+		"enable debug logging (enabled by default)",
+	)
+	flag.BoolVar(&config.LogJSON, "log-json", false,
+		"enable JSON-formatted logging",
+	)
 	flag.Parse()
 
 	if config.LogJSON {

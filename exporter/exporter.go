@@ -77,10 +77,12 @@ func NewExporter(c *Config, log Logger) *Exporter {
 	}
 	prometheus.MustRegister(x.promUpdateCount)
 
-	// FIXME: you shall not surprisingly modify a config object
-	var err error
+	var (
+		startFile, endFile string
+		err                error
+	)
 	if x.c.StartFile != "" {
-		x.c.StartFile, err = filepath.Abs(x.c.StartFile)
+		startFile, err = filepath.Abs(x.c.StartFile)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -88,12 +90,12 @@ func NewExporter(c *Config, log Logger) *Exporter {
 	if x.c.EndFile == "" {
 		log.Fatalln("--end-file must be set!")
 	}
-	x.c.EndFile, err = filepath.Abs(x.c.EndFile)
+	endFile, err = filepath.Abs(x.c.EndFile)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	startWatcher, endWatcher := x.createWatcher(x.c.StartFile), x.createWatcher(x.c.EndFile)
+	startWatcher, endWatcher := x.createWatcher(startFile), x.createWatcher(endFile)
 	x.watch(startWatcher, endWatcher)
 
 	return x
@@ -113,20 +115,20 @@ func (x *Exporter) createWatcher(filename string) *fsnotify.Watcher {
 	if err != nil {
 		x.log.Fatalf("Error creating fs notifier: %v", err)
 	}
-	d := filepath.Dir(filename)
-	deadline := time.NewTimer(x.startup.Add(x.c.DirectoryTimeout).Sub(time.Now()))
+	dir := filepath.Dir(filename)
+	deadline := time.NewTimer(time.Until(x.startup.Add(x.c.DirectoryTimeout)))
+retry:
 	for backoff := time.Second; ; backoff *= 2 {
-		addErr := w.Add(d)
+		addErr := w.Add(dir)
 		if addErr == nil {
-			break
-		} else {
-			select {
-			case <-time.After(backoff):
-				x.log.Printf("Retrying to add directory \"%s\" in %s after error: %v", d, backoff, addErr)
-				continue
-			case <-deadline.C:
-				x.log.Fatalf("Giving up adding directory \"%s\": %v", d, addErr)
-			}
+			break retry
+		}
+		select {
+		case <-time.After(backoff):
+			x.log.Printf("Retrying to add directory \"%s\" in %s after error: %v", dir, backoff, addErr)
+			continue retry
+		case <-deadline.C:
+			x.log.Fatalf("Giving up adding directory \"%s\": %v", dir, addErr)
 		}
 	}
 	return w
@@ -219,14 +221,14 @@ func (x *Exporter) PromHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (x *Exporter) healthHandler(w http.ResponseWriter, r *http.Request) {
-	x.writeStatusReponse(w, x.c.HealthTimeout, x.c.Welpenschutz)
+	x.writeStatusResponse(w, x.c.HealthTimeout, x.c.Welpenschutz)
 }
 
 func (x *Exporter) livenessHandler(w http.ResponseWriter, r *http.Request) {
-	x.writeStatusReponse(w, x.c.LivenessTimeout, 0)
+	x.writeStatusResponse(w, x.c.LivenessTimeout, 0)
 }
 
-func (x *Exporter) writeStatusReponse(w http.ResponseWriter, timeout, welpenschutz time.Duration) {
+func (x *Exporter) writeStatusResponse(w http.ResponseWriter, timeout, welpenschutz time.Duration) {
 	x.mu.RLock()
 	myEnd := x.end
 	x.mu.RUnlock()
@@ -239,10 +241,12 @@ func (x *Exporter) writeStatusReponse(w http.ResponseWriter, timeout, welpenschu
 
 	const body = "last_update: %s\r\n" +
 		"# time %s means never.\r\n" +
-		"# alive/healhty: %t\r\n"
+		"# alive/healthy: %t\r\n"
 	endF := myEnd.Format(time.RFC3339Nano)
 	if good {
-		fmt.Fprintf(w, fmt.Sprintf(body, endF, time.Time{}, good))
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintf(w, body, endF, time.Time{}, good)
 	} else {
 		http.Error(w, fmt.Sprintf(body, endF, time.Time{}, good), http.StatusServiceUnavailable)
 	}

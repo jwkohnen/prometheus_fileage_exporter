@@ -21,7 +21,7 @@ import (
 )
 
 func NewDefaultServer(x *Exporter) *http.Server {
-	//TODO this is not nicely done
+	// TODO this is not nicely done
 	x.WrapPromHandler(promhttp.Handler())
 
 	mux := http.NewServeMux()
