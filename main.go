@@ -47,22 +47,9 @@ func configure(log *logrus.Logger) *exporter.Config {
 	flag.DurationVar(&config.LivenessTimeout, "liveness-timeout", 10*time.Minute, "when should the service be considered un-live")
 	flag.DurationVar(&config.Welpenschutz, "health-welpenschutz", 10*time.Minute, "how long initially the service is considered healthy.")
 	flag.DurationVar(&config.DirectoryTimeout, "directory-timeout", 10*time.Minute, "how long to wait for missing directories")
-	flag.StringVar(&config.LogLevel, "log-level", "error", "set log level (debug, info, warn, error)")
+	flag.BoolVar(&config.Debug, "debug", true, "enable debug logging (enabled by default)")
 	flag.BoolVar(&config.LogJSON, "log-json", false, "enable JSON-formatted logging")
 	flag.Parse()
-
-	switch config.LogLevel {
-	case "debug":
-		log.Level = logrus.DebugLevel
-	case "info":
-		log.Level = logrus.InfoLevel
-	case "warn":
-		log.Level = logrus.WarnLevel
-	case "error":
-		log.Level = logrus.ErrorLevel
-	default:
-		log.Fatalf("Unknown log level %s", config.LogLevel)
-	}
 
 	if config.LogJSON {
 		log.Formatter = new(logrus.JSONFormatter)

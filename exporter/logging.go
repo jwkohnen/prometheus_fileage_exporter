@@ -14,21 +14,9 @@
 
 package exporter
 
-import "time"
-
-type Config struct {
-	StartFile        string
-	EndFile          string
-	Listen           string
-	PromEndpoint     string
-	HealthEndpoint   string
-	LivenessEndpoint string
-	HealthTimeout    time.Duration
-	LivenessTimeout  time.Duration
-	Welpenschutz     time.Duration
-	DirectoryTimeout time.Duration
-	Namespace        string
-	Subsystem        string
-	LogJSON          bool
-	Debug            bool
+type Logger interface {
+	Fatalf(format string, args ...interface{})
+	Fatal(v ...interface{})
+	Fatalln(v ...interface{})
+	Printf(format string, args ...interface{})
 }

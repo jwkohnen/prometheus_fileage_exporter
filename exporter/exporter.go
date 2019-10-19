@@ -16,7 +16,6 @@ package exporter
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -38,7 +37,7 @@ type Exporter struct {
 	onceRegisterUpdateAge      sync.Once
 	startup                    time.Time
 	promHandler                http.Handler
-	log                        *logrus.Logger
+	log                        Logger
 
 	mu     sync.RWMutex
 	start  time.Time
@@ -46,7 +45,7 @@ type Exporter struct {
 	oldEnd time.Time
 }
 
-func NewExporter(c *Config, log *logrus.Logger) *Exporter {
+func NewExporter(c *Config, log Logger) *Exporter {
 	x := &Exporter{
 		c:       c,
 		startup: time.Now(),
@@ -181,7 +180,9 @@ func (x *Exporter) update() {
 	if !start.IsZero() {
 		x.onceRegisterUpdateRunning.Do(func() { prometheus.MustRegister(x.promUpdateRunning) })
 		if end.IsZero() || start.After(end) {
-			x.log.Debugf("An update run started.")
+			if x.c.Debug {
+				x.log.Printf("An update run started.")
+			}
 			x.promUpdateRunning.Set(1)
 		} else {
 			x.promUpdateRunning.Set(0)
@@ -193,7 +194,9 @@ func (x *Exporter) update() {
 		if start.After(end) || x.startup.After(end) {
 			return
 		}
-		x.log.Debugf("An update run ended.")
+		if x.c.Debug {
+			x.log.Printf("An update run ended.")
+		}
 		x.promUpdateCount.Inc()
 		if !start.IsZero() {
 			x.onceRegisterUpdateDuration.Do(func() { prometheus.MustRegister(x.promUpdateDuration) })
