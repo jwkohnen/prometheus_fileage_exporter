@@ -26,7 +26,7 @@ import (
 func main() {
 	// Prepare logging
 	log := logrus.New()
-	log.Out = os.Stdout
+	log.Out = os.Stderr
 
 	s := exporter.NewDefaultServer(exporter.NewExporter(configure(log), log))
 
