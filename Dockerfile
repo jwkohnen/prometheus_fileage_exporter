@@ -1,4 +1,4 @@
-FROM	golang:1.13 as build
+FROM	golang:1.20 as build
 ENV	GO111MODULES=on CGO_ENABLED=0
 WORKDIR	/nogopath
 COPY	go.mod go.sum ./
