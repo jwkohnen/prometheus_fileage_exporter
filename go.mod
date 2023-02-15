@@ -1,6 +1,6 @@
 module github.com/jwkohnen/prometheus_fileage_exporter
 
-go 1.13
+go 1.19
 
 require (
 	github.com/fsnotify/fsnotify v1.4.7
